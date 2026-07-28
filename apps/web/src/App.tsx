@@ -753,6 +753,7 @@ function TransactionForm({
   const [selectedAccountId, setSelectedAccountId] = useState(editingItem?.accountId ?? "");
   const [selectedCardId, setSelectedCardId] = useState(editingItem?.cardId ?? "");
   const [date, setDate] = useState(editingItem?.date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+  const [isRecurring, setIsRecurring] = useState(Boolean(editingItem?.isRecurring));
   const availableCategories = categories.filter((item) => !item.type || item.type === transactionType);
 
   useEffect(() => {
@@ -763,6 +764,7 @@ function TransactionForm({
     setSelectedAccountId(editingItem?.accountId ?? accounts[0]?.id ?? "");
     setSelectedCardId(editingItem?.cardId ?? "");
     setDate(editingItem?.date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+    setIsRecurring(Boolean(editingItem?.isRecurring));
   }, [accounts, editingItem, initialType]);
 
   useEffect(() => {
@@ -786,7 +788,7 @@ function TransactionForm({
       categoryId: selectedCategoryId,
       accountId: selectedAccountId || null,
       cardId: selectedCardId || null,
-      isRecurring: false
+      isRecurring
     });
     setDescription("");
     setAmount("");
@@ -827,6 +829,15 @@ function TransactionForm({
           <option value="">{requireCard ? "Selecione um cartão" : "Sem cartão"}</option>
           {cards.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
+        <label className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 dark:border-slate-700 dark:text-slate-200 lg:col-span-2">
+          <input
+            className="h-4 w-4 accent-slate-900 dark:accent-white"
+            type="checkbox"
+            checked={isRecurring}
+            onChange={(event) => setIsRecurring(event.target.checked)}
+          />
+          Repetir todo mês
+        </label>
         <button type="submit" className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-slate-950 lg:col-span-2" disabled={!canSubmit}>
           {editingItem ? "Atualizar lançamento" : "Salvar lançamento"}
         </button>
@@ -897,6 +908,7 @@ function TransactionsTable({
               <th className="pb-3">Categoria</th>
               <th className="pb-3">Data</th>
               <th className="pb-3">Tipo</th>
+              <th className="pb-3">Recorrência</th>
               <th className="pb-3 text-right">Valor</th>
               <th className="pb-3 text-right">Ações</th>
             </tr>
@@ -911,6 +923,15 @@ function TransactionsTable({
                   <span className={`rounded-full px-2 py-1 text-xs ${item.type === "INCOME" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
                     {item.type === "INCOME" ? "Receita" : "Despesa"}
                   </span>
+                </td>
+                <td className="py-3">
+                  {item.isRecurring ? (
+                    <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                      Recorrente
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">Único</span>
+                  )}
                 </td>
                 <td className={`py-3 text-right font-semibold ${item.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}>
                   {item.type === "INCOME" ? "+" : "-"} {brl.format(item.amount)}

@@ -1,7 +1,8 @@
 import type { Account, Card, Category, DashboardSummary, Goal, RecurringExpense, Transaction } from "@financas/shared";
 import * as mock from "./mockData";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "/api" : "");
+const PRODUCTION_API_URL = "https://financas-pessoais-tg1y.onrender.com";
+const API_BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "/api" : PRODUCTION_API_URL);
 
 let accessTokenProvider: (() => Promise<string | null>) | null = null;
 

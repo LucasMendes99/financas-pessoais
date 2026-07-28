@@ -184,10 +184,12 @@ app.get("/dashboard", async (req, res, next) => {
       prisma.category.findMany({ where: { userId } })
     ]);
 
-    const incomeTotal = monthTransactions
+    const financialMonthTransactions = monthTransactions.filter((item) => item.category?.type !== null);
+
+    const incomeTotal = financialMonthTransactions
       .filter((item) => item.type === "INCOME")
       .reduce((sum, item) => sum + item.amount.toNumber(), 0);
-    const expenseTotal = monthTransactions
+    const expenseTotal = financialMonthTransactions
       .filter((item) => item.type === "EXPENSE")
       .reduce((sum, item) => sum + item.amount.toNumber(), 0);
     const currentBalance =
@@ -197,7 +199,7 @@ app.get("/dashboard", async (req, res, next) => {
       const date = new Date(start);
       date.setUTCMonth(start.getUTCMonth() - (5 - index));
       const key = date.toISOString().slice(0, 7);
-      const entries = allTransactions.filter((item) => item.date.toISOString().startsWith(key));
+      const entries = allTransactions.filter((item) => item.category?.type !== null && item.date.toISOString().startsWith(key));
       return {
         month: key,
         income: entries.filter((item) => item.type === "INCOME").reduce((sum, item) => sum + item.amount.toNumber(), 0),
@@ -206,10 +208,11 @@ app.get("/dashboard", async (req, res, next) => {
     });
 
     const byCategory = categories
+      .filter((category) => category.type === "EXPENSE")
       .map((category) => ({
         name: category.name,
         color: category.color,
-        value: monthTransactions
+        value: financialMonthTransactions
           .filter((item) => item.type === "EXPENSE" && item.categoryId === category.id)
           .reduce((sum, item) => sum + item.amount.toNumber(), 0)
       }))

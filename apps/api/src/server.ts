@@ -6,6 +6,7 @@ import { dirname } from "node:path";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient, TransactionType } from "@prisma/client";
+import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 const envPaths = [
@@ -23,9 +24,36 @@ const app = express();
 const port = Number(process.env.PORT ?? 3333);
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = dirname(currentFile);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 app.use(cors({ origin: process.env.WEB_ORIGIN ?? ["http://localhost:5180", "http://localhost:5173"] }));
 app.use(express.json());
+
+const requireAuth: express.RequestHandler = async (req, res, next) => {
+  const authorization = req.header("authorization");
+  const token = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : null;
+
+  if (!token) {
+    res.status(401).json({ message: "Token de autenticacao ausente" });
+    return;
+  }
+
+  if (!supabase) {
+    res.status(500).json({ message: "Supabase nao configurado na API" });
+    return;
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+
+  if (error || !data.user) {
+    res.status(401).json({ message: "Token de autenticacao invalido" });
+    return;
+  }
+
+  next();
+};
 
 const decimalToNumber = <T extends Record<string, unknown>>(item: T) =>
   Object.fromEntries(
@@ -89,6 +117,11 @@ const goalSchema = z.object({
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
+
+app.use(
+  ["/dashboard", "/transactions", "/categories", "/accounts", "/cards", "/recurring-expenses", "/goals"],
+  requireAuth
+);
 
 app.get("/dashboard", async (req, res, next) => {
   try {

@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: financas-pessoais
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        value: https://nmgksbiafdpokaxljiqg.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_TkYMHRQ5yz7fVssYxKYiyA_JNVDPRD9
+      - key: VITE_SUPABASE_URL
+        value: https://nmgksbiafdpokaxljiqg.supabase.co
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_TkYMHRQ5yz7fVssYxKYiyA_JNVDPRD9

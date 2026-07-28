@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import {
   Area,
   AreaChart,
@@ -22,6 +23,7 @@ import {
   Filter,
   Flag,
   LayoutDashboard,
+  LogOut,
   Plus,
   ReceiptText,
   Tags,
@@ -30,8 +32,9 @@ import {
 } from "lucide-react";
 import type { Account, Card as CardType, Category, DashboardSummary, Goal, RecurringExpense, Transaction } from "@financas/shared";
 import { Card } from "./components/Card";
-import { api } from "./lib/api";
+import { api, setAccessTokenProvider } from "./lib/api";
 import { brl, formatDate, monthLabel } from "./lib/format";
+import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 type View = "dashboard" | "transactions" | "categories" | "accounts" | "recurring" | "charts" | "goals";
 
@@ -50,6 +53,8 @@ const categoryName = (categories: Category[], id: string) => categories.find((it
 const currentMonth = "2026-07";
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState<View>("dashboard");
   const [month, setMonth] = useState(currentMonth);
   const [type, setType] = useState("");
@@ -63,24 +68,54 @@ export default function App() {
   const [goals, setGoals] = useState<Goal[]>([]);
 
   useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
+    const client = supabase;
+
+    setAccessTokenProvider(async () => {
+      const { data } = await client.auth.getSession();
+      return data.session?.access_token ?? null;
+    });
+
+    client.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthLoading(false);
+    });
+
+    const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
     api.categories().then(setCategories);
     api.accounts().then(setAccounts);
     api.cards().then(setCards);
     api.recurringExpenses().then(setRecurring);
     api.goals().then(setGoals);
-  }, []);
+  }, [session]);
 
   useEffect(() => {
+    if (!session) return;
     api.dashboard(month).then(setDashboard);
-  }, [month]);
+  }, [month, session]);
 
   useEffect(() => {
+    if (!session) return;
     const params = new URLSearchParams();
     params.set("month", month);
     if (type) params.set("type", type);
     if (categoryId) params.set("categoryId", categoryId);
     api.transactions(params).then(setTransactions);
-  }, [month, type, categoryId]);
+  }, [month, type, categoryId, session]);
 
   const expenseCategories = useMemo(() => categories.filter((item) => item.type !== "INCOME"), [categories]);
 
@@ -105,6 +140,26 @@ export default function App() {
       };
     });
   };
+
+  const signOut = async () => {
+    await supabase?.auth.signOut();
+  };
+
+  if (!isSupabaseConfigured) {
+    return <AuthSetupMissing />;
+  }
+
+  if (authLoading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-paper px-4 text-slate-700">
+        <p className="text-sm font-medium">Carregando autenticacao...</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <AuthView />;
+  }
 
   return (
     <div className="min-h-screen bg-paper text-slate-900">
@@ -151,6 +206,14 @@ export default function App() {
               <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white">
                 <Plus size={16} />
                 Novo
+              </button>
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
+                onClick={signOut}
+                title="Sair"
+              >
+                <LogOut size={16} />
+                Sair
               </button>
             </div>
           </div>
@@ -233,6 +296,115 @@ export default function App() {
           </button>
         ))}
       </nav>
+    </div>
+  );
+}
+
+function AuthSetupMissing() {
+  return (
+    <div className="grid min-h-screen place-items-center bg-paper px-4">
+      <Card title="Supabase nao configurado">
+        <div className="max-w-lg space-y-3 text-sm text-slate-600">
+          <p>Crie o arquivo apps/web/.env.local com as variaveis abaixo e reinicie o servidor do frontend.</p>
+          <pre className="overflow-x-auto rounded-lg bg-slate-950 p-4 text-xs text-white">
+            VITE_SUPABASE_URL="https://seu-projeto.supabase.co"{`\n`}
+            VITE_SUPABASE_PUBLISHABLE_KEY="sua-chave-publicavel"
+          </pre>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function AuthView() {
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!supabase) return;
+
+    setLoading(true);
+    setMessage("");
+
+    const response =
+      mode === "signin"
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password });
+
+    if (response.error) {
+      setMessage(response.error.message);
+    } else if (mode === "signup") {
+      setMessage("Cadastro criado. Verifique seu email se a confirmacao estiver ativa no Supabase.");
+    }
+
+    setLoading(false);
+  };
+
+  return (
+    <div className="grid min-h-screen place-items-center bg-paper px-4 py-8">
+      <div className="w-full max-w-md">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-lg bg-slate-900 text-white">
+            <WalletCards size={21} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-950">Financas Pessoais</p>
+            <p className="text-xs text-slate-500">Acesse sua area protegida</p>
+          </div>
+        </div>
+
+        <Card title={mode === "signin" ? "Entrar" : "Criar conta"}>
+          <form className="space-y-4" onSubmit={submit}>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">
+                Email
+              </label>
+              <input
+                id="email"
+                className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="password">
+                Senha
+              </label>
+              <input
+                id="password"
+                className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                minLength={6}
+                required
+              />
+            </div>
+
+            {message && <p className="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">{message}</p>}
+
+            <button className="h-11 w-full rounded-lg bg-slate-900 px-4 text-sm font-medium text-white" disabled={loading} type="submit">
+              {loading ? "Aguarde..." : mode === "signin" ? "Entrar" : "Cadastrar"}
+            </button>
+          </form>
+
+          <button
+            className="mt-4 w-full text-sm font-medium text-slate-700"
+            onClick={() => {
+              setMode((current) => (current === "signin" ? "signup" : "signin"));
+              setMessage("");
+            }}
+          >
+            {mode === "signin" ? "Criar uma conta" : "Ja tenho conta"}
+          </button>
+        </Card>
+      </div>
     </div>
   );
 }

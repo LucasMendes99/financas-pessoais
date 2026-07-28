@@ -92,6 +92,26 @@ const decimalToNumber = <T extends Record<string, unknown>>(item: T) =>
     ])
   );
 
+type TransactionWithRelations = Awaited<ReturnType<typeof prisma.transaction.findMany>>[number] & {
+  category?: { type: TransactionType | null } | null;
+};
+
+const recurringDateForMonth = (originalDate: Date, monthStart: Date) => {
+  const year = monthStart.getUTCFullYear();
+  const month = monthStart.getUTCMonth();
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const day = Math.min(originalDate.getUTCDate(), lastDay);
+  return new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+};
+
+const recurringOccurrencesForMonth = <T extends TransactionWithRelations>(transactions: T[], start: Date) =>
+  transactions
+    .filter((item) => item.isRecurring && item.date < start)
+    .map((item) => ({
+      ...item,
+      date: recurringDateForMonth(item.date, start)
+    }));
+
 const transactionSchema = z.object({
   description: z.string().min(2),
   amount: z.coerce.number().positive(),
@@ -184,7 +204,11 @@ app.get("/dashboard", async (req, res, next) => {
       prisma.category.findMany({ where: { userId } })
     ]);
 
-    const financialMonthTransactions = monthTransactions.filter((item) => item.category?.type !== null);
+    const projectedMonthTransactions = [
+      ...monthTransactions,
+      ...recurringOccurrencesForMonth(allTransactions, start)
+    ];
+    const financialMonthTransactions = projectedMonthTransactions.filter((item) => item.category?.type !== null);
 
     const incomeTotal = financialMonthTransactions
       .filter((item) => item.type === "INCOME")
@@ -199,7 +223,12 @@ app.get("/dashboard", async (req, res, next) => {
       const date = new Date(start);
       date.setUTCMonth(start.getUTCMonth() - (5 - index));
       const key = date.toISOString().slice(0, 7);
-      const entries = allTransactions.filter((item) => item.category?.type !== null && item.date.toISOString().startsWith(key));
+      const nextMonth = new Date(date);
+      nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+      const entries = [
+        ...allTransactions.filter((item) => item.date >= date && item.date < nextMonth),
+        ...recurringOccurrencesForMonth(allTransactions, date)
+      ].filter((item) => item.category?.type !== null);
       return {
         month: key,
         income: entries.filter((item) => item.type === "INCOME").reduce((sum, item) => sum + item.amount.toNumber(), 0),
@@ -242,6 +271,38 @@ app.get("/transactions", async (req, res, next) => {
       const end = new Date(start);
       end.setUTCMonth(end.getUTCMonth() + 1);
       where.date = { gte: start, lt: end };
+
+      const recurringWhere: {
+        userId: string;
+        isRecurring: true;
+        type?: TransactionType;
+        categoryId?: string;
+        date: { lt: Date };
+      } = { userId, isRecurring: true, date: { lt: start } };
+
+      if (where.type) recurringWhere.type = where.type;
+      if (where.categoryId) recurringWhere.categoryId = where.categoryId;
+
+      const [transactions, recurringSeeds] = await Promise.all([
+        prisma.transaction.findMany({
+          where,
+          include: { category: true, account: true, card: true },
+          orderBy: { date: "desc" }
+        }),
+        prisma.transaction.findMany({
+          where: recurringWhere,
+          include: { category: true, account: true, card: true },
+          orderBy: { date: "desc" }
+        })
+      ]);
+
+      const projectedTransactions = [
+        ...transactions,
+        ...recurringOccurrencesForMonth(recurringSeeds, start)
+      ].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+      res.json(projectedTransactions.map(decimalToNumber));
+      return;
     }
 
     const transactions = await prisma.transaction.findMany({

@@ -301,6 +301,47 @@ app.delete("/transactions/:id", async (req, res, next) => {
   }
 });
 
+app.delete("/categories/:id", async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    await prisma.$transaction([
+      prisma.transaction.deleteMany({ where: { categoryId: req.params.id, userId } }),
+      prisma.recurringExpense.deleteMany({ where: { categoryId: req.params.id, userId } }),
+      prisma.category.deleteMany({ where: { id: req.params.id, userId } })
+    ]);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/accounts/:id", async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    await prisma.$transaction([
+      prisma.transaction.updateMany({ where: { accountId: req.params.id, userId }, data: { accountId: null } }),
+      prisma.recurringExpense.updateMany({ where: { accountId: req.params.id, userId }, data: { accountId: null } }),
+      prisma.account.deleteMany({ where: { id: req.params.id, userId } })
+    ]);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/cards/:id", async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    await prisma.$transaction([
+      prisma.transaction.updateMany({ where: { cardId: req.params.id, userId }, data: { cardId: null } }),
+      prisma.card.deleteMany({ where: { id: req.params.id, userId } })
+    ]);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 const crud = <T extends z.ZodTypeAny>(
   path: string,
   model: any,

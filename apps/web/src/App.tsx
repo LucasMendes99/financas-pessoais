@@ -61,6 +61,10 @@ const categoryName = (categories: Category[], id: string) => categories.find((it
 
 const currentMonth = "2026-07";
 
+const reportActionError = (error: unknown) => {
+  window.alert(error instanceof Error ? error.message : "Não foi possível concluir a ação.");
+};
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -857,7 +861,11 @@ function TransactionsTable({
 
   const confirmDelete = async (item: Transaction) => {
     if (!window.confirm(`Excluir "${item.description}"?`)) return;
-    await onDelete(item.id);
+    try {
+      await onDelete(item.id);
+    } catch (error) {
+      reportActionError(error);
+    }
   };
 
   return (
@@ -1474,7 +1482,11 @@ function CategoriesView({
   const [editing, setEditing] = useState<Category | null>(null);
   const confirmDelete = async (item: Category) => {
     if (!window.confirm(`Excluir "${item.name}"?`)) return;
-    await onDelete(item.id);
+    try {
+      await onDelete(item.id);
+    } catch (error) {
+      reportActionError(error);
+    }
   };
 
   return (
@@ -1535,11 +1547,19 @@ function AccountsView({
   const [editingCard, setEditingCard] = useState<CardType | null>(null);
   const confirmDeleteAccount = async (item: Account) => {
     if (!window.confirm(`Excluir "${item.name}"?`)) return;
-    await onDeleteAccount(item.id);
+    try {
+      await onDeleteAccount(item.id);
+    } catch (error) {
+      reportActionError(error);
+    }
   };
   const confirmDeleteCard = async (item: CardType) => {
     if (!window.confirm(`Excluir "${item.name}"?`)) return;
-    await onDeleteCard(item.id);
+    try {
+      await onDeleteCard(item.id);
+    } catch (error) {
+      reportActionError(error);
+    }
   };
 
   return (
@@ -1620,7 +1640,11 @@ function RecurringView({
   const [editing, setEditing] = useState<RecurringExpense | null>(null);
   const confirmDelete = async (item: RecurringExpense) => {
     if (!window.confirm(`Excluir "${item.description}"?`)) return;
-    await onDelete(item.id);
+    try {
+      await onDelete(item.id);
+    } catch (error) {
+      reportActionError(error);
+    }
   };
 
   return (
@@ -1675,7 +1699,11 @@ function GoalsView({
   const [editing, setEditing] = useState<Goal | null>(null);
   const confirmDelete = async (item: Goal) => {
     if (!window.confirm(`Excluir "${item.name}"?`)) return;
-    await onDelete(item.id);
+    try {
+      await onDelete(item.id);
+    } catch (error) {
+      reportActionError(error);
+    }
   };
 
   return (

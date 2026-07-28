@@ -26,6 +26,7 @@ enum GoalType {
 
 model Category {
   id                String             @id @default(cuid())
+  userId            String
   name              String
   color             String
   icon              String
@@ -34,10 +35,13 @@ model Category {
   recurringExpenses RecurringExpense[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+
+  @@index([userId])
 }
 
 model Account {
   id                String             @id @default(cuid())
+  userId            String
   name              String
   type              AccountType
   balance           Decimal            @db.Decimal(12, 2)
@@ -45,10 +49,13 @@ model Account {
   recurringExpenses RecurringExpense[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+
+  @@index([userId])
 }
 
 model Card {
   id           String        @id @default(cuid())
+  userId       String
   name         String
   brand        String
   limit        Decimal       @db.Decimal(12, 2)
@@ -57,10 +64,13 @@ model Card {
   transactions Transaction[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+
+  @@index([userId])
 }
 
 model Transaction {
   id          String          @id @default(cuid())
+  userId      String
   description String
   amount      Decimal         @db.Decimal(12, 2)
   type        TransactionType
@@ -74,10 +84,13 @@ model Transaction {
   card        Card?           @relation(fields: [cardId], references: [id], onDelete: SetNull)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+
+  @@index([userId])
 }
 
 model RecurringExpense {
   id          String   @id @default(cuid())
+  userId      String
   description String
   amount      Decimal  @db.Decimal(12, 2)
   dueDay      Int
@@ -88,10 +101,13 @@ model RecurringExpense {
   account     Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Goal {
   id            String   @id @default(cuid())
+  userId        String
   name          String
   targetAmount  Decimal  @db.Decimal(12, 2)
   currentAmount Decimal  @db.Decimal(12, 2)
@@ -99,4 +115,6 @@ model Goal {
   type          GoalType
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([userId])
 }

@@ -30,9 +30,9 @@ import {
   Target,
   WalletCards
 } from "lucide-react";
-import type { Account, Card as CardType, Category, DashboardSummary, Goal, RecurringExpense, Transaction } from "@financas/shared";
+import type { Account, Card as CardType, Category, DashboardSummary, Goal, RecurringExpense, Transaction, TransactionType } from "@financas/shared";
 import { Card } from "./components/Card";
-import { api, setAccessTokenProvider } from "./lib/api";
+import { api, emptyDashboard, setAccessTokenProvider } from "./lib/api";
 import { brl, formatDate, monthLabel } from "./lib/format";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
@@ -66,6 +66,7 @@ export default function App() {
   const [cards, setCards] = useState<CardType[]>([]);
   const [recurring, setRecurring] = useState<RecurringExpense[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     if (!supabase) {
@@ -96,16 +97,29 @@ export default function App() {
 
   useEffect(() => {
     if (!session) return;
-    api.categories().then(setCategories);
-    api.accounts().then(setAccounts);
-    api.cards().then(setCards);
-    api.recurringExpenses().then(setRecurring);
-    api.goals().then(setGoals);
+    Promise.all([api.categories(), api.accounts(), api.cards(), api.recurringExpenses(), api.goals()])
+      .then(([nextCategories, nextAccounts, nextCards, nextRecurring, nextGoals]) => {
+        setCategories(nextCategories);
+        setAccounts(nextAccounts);
+        setCards(nextCards);
+        setRecurring(nextRecurring);
+        setGoals(nextGoals);
+        setLoadError("");
+      })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Erro ao carregar dados"));
   }, [session]);
 
   useEffect(() => {
     if (!session) return;
-    api.dashboard(month).then(setDashboard);
+    api.dashboard(month)
+      .then((nextDashboard) => {
+        setDashboard(nextDashboard);
+        setLoadError("");
+      })
+      .catch((error) => {
+        setDashboard(emptyDashboard(month));
+        setLoadError(error instanceof Error ? error.message : "Erro ao carregar dashboard");
+      });
   }, [month, session]);
 
   useEffect(() => {
@@ -114,7 +128,15 @@ export default function App() {
     params.set("month", month);
     if (type) params.set("type", type);
     if (categoryId) params.set("categoryId", categoryId);
-    api.transactions(params).then(setTransactions);
+    api.transactions(params)
+      .then((nextTransactions) => {
+        setTransactions(nextTransactions);
+        setLoadError("");
+      })
+      .catch((error) => {
+        setTransactions([]);
+        setLoadError(error instanceof Error ? error.message : "Erro ao carregar lancamentos");
+      });
   }, [month, type, categoryId, session]);
 
   const expenseCategories = useMemo(() => categories.filter((item) => item.type !== "INCOME"), [categories]);
@@ -139,6 +161,36 @@ export default function App() {
         expenseTotal: current.expenseTotal + expenseDelta
       };
     });
+  };
+
+  const refreshDashboard = async () => {
+    setDashboard(await api.dashboard(month));
+  };
+
+  const createCategory = async (data: Omit<Category, "id">) => {
+    const created = await api.createCategory(data);
+    setCategories((current) => [created, ...current]);
+  };
+
+  const createAccount = async (data: Omit<Account, "id">) => {
+    const created = await api.createAccount(data);
+    setAccounts((current) => [created, ...current]);
+    await refreshDashboard();
+  };
+
+  const createCard = async (data: Omit<CardType, "id">) => {
+    const created = await api.createCard(data);
+    setCards((current) => [created, ...current]);
+  };
+
+  const createRecurringExpense = async (data: Omit<RecurringExpense, "id">) => {
+    const created = await api.createRecurringExpense(data);
+    setRecurring((current) => [created, ...current]);
+  };
+
+  const createGoal = async (data: Omit<Goal, "id">) => {
+    const created = await api.createGoal(data);
+    setGoals((current) => [created, ...current]);
   };
 
   const signOut = async () => {
@@ -220,6 +272,12 @@ export default function App() {
         </header>
 
         <div className="px-4 py-5 sm:px-6 lg:px-8">
+          {loadError && (
+            <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {loadError}
+            </div>
+          )}
+
           {view === "dashboard" && (
             <div className="space-y-5">
               <div className="grid gap-4 md:grid-cols-3">
@@ -270,16 +328,20 @@ export default function App() {
             </div>
           )}
 
-          {view === "categories" && <CategoriesView categories={categories} />}
-          {view === "accounts" && <AccountsView accounts={accounts} cards={cards} />}
-          {view === "recurring" && <RecurringView recurring={recurring} categories={categories} />}
+          {view === "categories" && <CategoriesView categories={categories} onCreate={createCategory} />}
+          {view === "accounts" && (
+            <AccountsView accounts={accounts} cards={cards} onCreateAccount={createAccount} onCreateCard={createCard} />
+          )}
+          {view === "recurring" && (
+            <RecurringView recurring={recurring} categories={categories} accounts={accounts} onCreate={createRecurringExpense} />
+          )}
           {view === "charts" && (
             <div className="grid gap-5 xl:grid-cols-2">
               <MonthlyChart data={dashboard?.monthly ?? []} />
               <CategoryPie data={dashboard?.byCategory ?? []} />
             </div>
           )}
-          {view === "goals" && <GoalsView goals={goals} />}
+          {view === "goals" && <GoalsView goals={goals} onCreate={createGoal} />}
         </div>
       </main>
 
@@ -506,8 +568,15 @@ function TransactionForm({
     setAmount("");
   };
 
+  const canSubmit = Boolean(description.trim() && amount && selectedCategoryId);
+
   return (
     <Card title="Cadastrar receita ou despesa">
+      {categories.length === 0 && (
+        <p className="mb-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+          Cadastre uma categoria antes de adicionar lancamentos.
+        </p>
+      )}
       <form className="grid gap-3 lg:grid-cols-6" onSubmit={submit}>
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm lg:col-span-2" placeholder="Descricao" value={description} onChange={(event) => setDescription(event.target.value)} />
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Valor" type="number" min="0" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} />
@@ -516,6 +585,7 @@ function TransactionForm({
           <option value="EXPENSE">Despesa</option>
         </select>
         <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" value={selectedCategoryId} onChange={(event) => setSelectedCategoryId(event.target.value)}>
+          <option value="">Selecione uma categoria</option>
           {availableCategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
@@ -526,7 +596,7 @@ function TransactionForm({
           <option value="">Sem cartao</option>
           {cards.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
-        <button type="submit" className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white lg:col-span-2">Salvar lancamento</button>
+        <button type="submit" className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 lg:col-span-2" disabled={!canSubmit}>Salvar lancamento</button>
       </form>
     </Card>
   );
@@ -535,6 +605,9 @@ function TransactionForm({
 function TransactionsTable({ transactions, categories, title }: { transactions: Transaction[]; categories: Category[]; title: string }) {
   return (
     <Card title={title}>
+      {transactions.length === 0 ? (
+        <EmptyState message="Nenhum lancamento cadastrado ainda." />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full min-w-[680px] text-left text-sm">
           <thead className="text-xs uppercase text-slate-500">
@@ -565,34 +638,239 @@ function TransactionsTable({ transactions, categories, title }: { transactions: 
           </tbody>
         </table>
       </div>
+      )}
     </Card>
   );
 }
 
-function CategoriesView({ categories }: { categories: Category[] }) {
+function EmptyState({ message }: { message: string }) {
+  return <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">{message}</p>;
+}
+
+function CategoryForm({ onCreate }: { onCreate: (data: Omit<Category, "id">) => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [type, setType] = useState<TransactionType>("EXPENSE");
+  const [color, setColor] = useState("#0F766E");
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name.trim()) return;
+    await onCreate({ name: name.trim(), color, icon: "tag", type });
+    setName("");
+  };
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {categories.map((item) => (
-        <Card key={item.id}>
-          <div className="flex items-center gap-3">
-            <span className="h-4 w-4 rounded-full" style={{ background: item.color }} />
-            <div>
-              <p className="font-semibold">{item.name}</p>
-              <p className="text-sm text-slate-500">{item.type === "INCOME" ? "Receita" : item.type === "EXPENSE" ? "Despesa" : "Geral"}</p>
-            </div>
-          </div>
-        </Card>
-      ))}
+    <Card title="Cadastrar categoria">
+      <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}>
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm md:col-span-2" placeholder="Nome da categoria" value={name} onChange={(event) => setName(event.target.value)} />
+        <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" value={type} onChange={(event) => setType(event.target.value as TransactionType)}>
+          <option value="INCOME">Receita</option>
+          <option value="EXPENSE">Despesa</option>
+        </select>
+        <div className="flex gap-2">
+          <input className="h-10 w-14 rounded-lg border border-slate-200 p-1" type="color" value={color} onChange={(event) => setColor(event.target.value)} />
+          <button className="h-10 flex-1 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white" type="submit">Salvar</button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function AccountForm({ onCreate }: { onCreate: (data: Omit<Account, "id">) => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [type, setType] = useState<Account["type"]>("CHECKING");
+  const [balance, setBalance] = useState("0");
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name.trim()) return;
+    await onCreate({ name: name.trim(), type, balance: Number(balance) });
+    setName("");
+    setBalance("0");
+  };
+
+  return (
+    <Card title="Cadastrar conta">
+      <form className="grid gap-3 sm:grid-cols-2" onSubmit={submit}>
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm sm:col-span-2" placeholder="Nome da conta" value={name} onChange={(event) => setName(event.target.value)} />
+        <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" value={type} onChange={(event) => setType(event.target.value as Account["type"])}>
+          <option value="CHECKING">Conta corrente</option>
+          <option value="SAVINGS">Poupanca</option>
+          <option value="WALLET">Carteira</option>
+          <option value="INVESTMENT">Investimento</option>
+        </select>
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" type="number" step="0.01" value={balance} onChange={(event) => setBalance(event.target.value)} />
+        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white sm:col-span-2" type="submit">Salvar conta</button>
+      </form>
+    </Card>
+  );
+}
+
+function CardForm({ onCreate }: { onCreate: (data: Omit<CardType, "id">) => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [brand, setBrand] = useState("");
+  const [limit, setLimit] = useState("");
+  const [closingDay, setClosingDay] = useState("20");
+  const [dueDay, setDueDay] = useState("27");
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name.trim() || !brand.trim() || !limit) return;
+    await onCreate({ name: name.trim(), brand: brand.trim(), limit: Number(limit), closingDay: Number(closingDay), dueDay: Number(dueDay) });
+    setName("");
+    setBrand("");
+    setLimit("");
+  };
+
+  return (
+    <Card title="Cadastrar cartao">
+      <form className="grid gap-3 sm:grid-cols-2" onSubmit={submit}>
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Nome" value={name} onChange={(event) => setName(event.target.value)} />
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Bandeira" value={brand} onChange={(event) => setBrand(event.target.value)} />
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Limite" type="number" min="0" step="0.01" value={limit} onChange={(event) => setLimit(event.target.value)} />
+        <div className="grid grid-cols-2 gap-2">
+          <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" type="number" min="1" max="31" value={closingDay} onChange={(event) => setClosingDay(event.target.value)} />
+          <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" type="number" min="1" max="31" value={dueDay} onChange={(event) => setDueDay(event.target.value)} />
+        </div>
+        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white sm:col-span-2" type="submit">Salvar cartao</button>
+      </form>
+    </Card>
+  );
+}
+
+function RecurringForm({
+  categories,
+  accounts,
+  onCreate
+}: {
+  categories: Category[];
+  accounts: Account[];
+  onCreate: (data: Omit<RecurringExpense, "id">) => Promise<void>;
+}) {
+  const expenseCategories = categories.filter((item) => item.type !== "INCOME");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [dueDay, setDueDay] = useState("5");
+  const [categoryId, setCategoryId] = useState("");
+  const [accountId, setAccountId] = useState("");
+
+  useEffect(() => {
+    setCategoryId((current) => (expenseCategories.some((item) => item.id === current) ? current : expenseCategories[0]?.id ?? ""));
+  }, [expenseCategories]);
+
+  useEffect(() => {
+    setAccountId((current) => (accounts.some((item) => item.id === current) ? current : accounts[0]?.id ?? ""));
+  }, [accounts]);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!description.trim() || !amount || !categoryId) return;
+    await onCreate({ description: description.trim(), amount: Number(amount), dueDay: Number(dueDay), categoryId, accountId: accountId || null, active: true });
+    setDescription("");
+    setAmount("");
+  };
+
+  return (
+    <Card title="Cadastrar fixa">
+      {expenseCategories.length === 0 && <p className="mb-3 text-sm text-slate-500">Cadastre uma categoria de despesa antes.</p>}
+      <form className="grid gap-3 lg:grid-cols-5" onSubmit={submit}>
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm lg:col-span-2" placeholder="Descricao" value={description} onChange={(event) => setDescription(event.target.value)} />
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Valor" type="number" min="0" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} />
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" type="number" min="1" max="31" value={dueDay} onChange={(event) => setDueDay(event.target.value)} />
+        <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+          <option value="">Categoria</option>
+          {expenseCategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm lg:col-span-2" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+          <option value="">Sem conta</option>
+          {accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 lg:col-span-3" disabled={!categoryId} type="submit">Salvar fixa</button>
+      </form>
+    </Card>
+  );
+}
+
+function GoalForm({ onCreate }: { onCreate: (data: Omit<Goal, "id">) => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [targetAmount, setTargetAmount] = useState("");
+  const [currentAmount, setCurrentAmount] = useState("0");
+  const [targetDate, setTargetDate] = useState("");
+  const [type, setType] = useState<Goal["type"]>("GOAL");
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name.trim() || !targetAmount) return;
+    await onCreate({ name: name.trim(), targetAmount: Number(targetAmount), currentAmount: Number(currentAmount), targetDate: targetDate || null, type });
+    setName("");
+    setTargetAmount("");
+    setCurrentAmount("0");
+    setTargetDate("");
+  };
+
+  return (
+    <Card title="Cadastrar meta">
+      <form className="grid gap-3 lg:grid-cols-5" onSubmit={submit}>
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm lg:col-span-2" placeholder="Nome da meta" value={name} onChange={(event) => setName(event.target.value)} />
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Valor alvo" type="number" min="0" step="0.01" value={targetAmount} onChange={(event) => setTargetAmount(event.target.value)} />
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Valor atual" type="number" min="0" step="0.01" value={currentAmount} onChange={(event) => setCurrentAmount(event.target.value)} />
+        <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" value={type} onChange={(event) => setType(event.target.value as Goal["type"])}>
+          <option value="GOAL">Meta</option>
+          <option value="EMERGENCY_RESERVE">Reserva</option>
+        </select>
+        <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm lg:col-span-2" type="date" value={targetDate} onChange={(event) => setTargetDate(event.target.value)} />
+        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white lg:col-span-3" type="submit">Salvar meta</button>
+      </form>
+    </Card>
+  );
+}
+
+function CategoriesView({ categories, onCreate }: { categories: Category[]; onCreate: (data: Omit<Category, "id">) => Promise<void> }) {
+  return (
+    <div className="space-y-5">
+      <CategoryForm onCreate={onCreate} />
+      {categories.length === 0 ? (
+        <Card><EmptyState message="Nenhuma categoria cadastrada ainda." /></Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {categories.map((item) => (
+            <Card key={item.id}>
+              <div className="flex items-center gap-3">
+                <span className="h-4 w-4 rounded-full" style={{ background: item.color }} />
+                <div>
+                  <p className="font-semibold">{item.name}</p>
+                  <p className="text-sm text-slate-500">{item.type === "INCOME" ? "Receita" : item.type === "EXPENSE" ? "Despesa" : "Geral"}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function AccountsView({ accounts, cards }: { accounts: Account[]; cards: CardType[] }) {
+function AccountsView({
+  accounts,
+  cards,
+  onCreateAccount,
+  onCreateCard
+}: {
+  accounts: Account[];
+  cards: CardType[];
+  onCreateAccount: (data: Omit<Account, "id">) => Promise<void>;
+  onCreateCard: (data: Omit<CardType, "id">) => Promise<void>;
+}) {
   return (
-    <div className="grid gap-5 xl:grid-cols-2">
+    <div className="space-y-5">
+      <div className="grid gap-5 xl:grid-cols-2">
+        <AccountForm onCreate={onCreateAccount} />
+        <CardForm onCreate={onCreateCard} />
+      </div>
+      <div className="grid gap-5 xl:grid-cols-2">
       <Card title="Contas">
         <div className="space-y-3">
-          {accounts.map((item) => (
+          {accounts.length === 0 ? <EmptyState message="Nenhuma conta cadastrada ainda." /> : accounts.map((item) => (
             <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-100 p-3">
               <div>
                 <p className="font-medium">{item.name}</p>
@@ -605,7 +883,7 @@ function AccountsView({ accounts, cards }: { accounts: Account[]; cards: CardTyp
       </Card>
       <Card title="Cartoes">
         <div className="space-y-3">
-          {cards.map((item) => (
+          {cards.length === 0 ? <EmptyState message="Nenhum cartao cadastrado ainda." /> : cards.map((item) => (
             <div key={item.id} className="rounded-lg border border-slate-100 p-3">
               <div className="flex items-center justify-between">
                 <p className="font-medium">{item.name}</p>
@@ -616,15 +894,29 @@ function AccountsView({ accounts, cards }: { accounts: Account[]; cards: CardTyp
           ))}
         </div>
       </Card>
+      </div>
     </div>
   );
 }
 
-function RecurringView({ recurring, categories }: { recurring: RecurringExpense[]; categories: Category[] }) {
+function RecurringView({
+  recurring,
+  categories,
+  accounts,
+  onCreate
+}: {
+  recurring: RecurringExpense[];
+  categories: Category[];
+  accounts: Account[];
+  onCreate: (data: Omit<RecurringExpense, "id">) => Promise<void>;
+}) {
   return (
-    <Card title="Despesas fixas e recorrentes">
-      <div className="grid gap-3 md:grid-cols-2">
-        {recurring.map((item) => (
+    <div className="space-y-5">
+      <RecurringForm categories={categories} accounts={accounts} onCreate={onCreate} />
+      <Card title="Despesas fixas e recorrentes">
+        {recurring.length === 0 ? <EmptyState message="Nenhuma despesa fixa cadastrada ainda." /> : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {recurring.map((item) => (
           <div key={item.id} className="rounded-lg border border-slate-100 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -635,16 +927,21 @@ function RecurringView({ recurring, categories }: { recurring: RecurringExpense[
             </div>
             <p className="mt-4 text-xl font-semibold">{brl.format(item.amount)}</p>
           </div>
-        ))}
-      </div>
-    </Card>
+          ))}
+        </div>
+        )}
+      </Card>
+    </div>
   );
 }
 
-function GoalsView({ goals }: { goals: Goal[] }) {
+function GoalsView({ goals, onCreate }: { goals: Goal[]; onCreate: (data: Omit<Goal, "id">) => Promise<void> }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {goals.map((item) => {
+    <div className="space-y-5">
+      <GoalForm onCreate={onCreate} />
+      {goals.length === 0 ? <Card><EmptyState message="Nenhuma meta cadastrada ainda." /></Card> : (
+      <div className="grid gap-4 md:grid-cols-2">
+        {goals.map((item) => {
         const progress = Math.min(100, Math.round((item.currentAmount / item.targetAmount) * 100));
         return (
           <Card key={item.id}>
@@ -667,7 +964,9 @@ function GoalsView({ goals }: { goals: Goal[] }) {
             </div>
           </Card>
         );
-      })}
+        })}
+      </div>
+      )}
     </div>
   );
 }

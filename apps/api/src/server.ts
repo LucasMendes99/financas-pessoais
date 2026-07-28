@@ -9,6 +9,8 @@ import { PrismaClient, TransactionType } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
+type AuthenticatedRequest = express.Request & { userId: string };
+
 const envPaths = [
   join(process.cwd(), ".env"),
   join(process.cwd(), "apps/api/.env"),
@@ -71,8 +73,11 @@ const requireAuth: express.RequestHandler = async (req, res, next) => {
     return;
   }
 
+  (req as AuthenticatedRequest).userId = data.user.id;
   next();
 };
+
+const getUserId = (req: express.Request) => (req as AuthenticatedRequest).userId;
 
 const decimalToNumber = <T extends Record<string, unknown>>(item: T) =>
   Object.fromEntries(
@@ -133,6 +138,25 @@ const goalSchema = z.object({
   type: z.enum(["EMERGENCY_RESERVE", "GOAL"])
 });
 
+const validateTransactionRefs = async (data: z.infer<typeof transactionSchema>, userId: string) => {
+  const [category, account, card] = await Promise.all([
+    prisma.category.findFirst({ where: { id: data.categoryId, userId } }),
+    data.accountId ? prisma.account.findFirst({ where: { id: data.accountId, userId } }) : Promise.resolve(null),
+    data.cardId ? prisma.card.findFirst({ where: { id: data.cardId, userId } }) : Promise.resolve(null)
+  ]);
+
+  return Boolean(category && (!data.accountId || account) && (!data.cardId || card));
+};
+
+const validateRecurringRefs = async (data: z.infer<typeof recurringSchema>, userId: string) => {
+  const [category, account] = await Promise.all([
+    prisma.category.findFirst({ where: { id: data.categoryId, userId } }),
+    data.accountId ? prisma.account.findFirst({ where: { id: data.accountId, userId } }) : Promise.resolve(null)
+  ]);
+
+  return Boolean(category && (!data.accountId || account));
+};
+
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
@@ -144,16 +168,17 @@ app.use(
 
 app.get("/dashboard", async (req, res, next) => {
   try {
+    const userId = getUserId(req);
     const month = typeof req.query.month === "string" ? req.query.month : new Date().toISOString().slice(0, 7);
     const start = new Date(`${month}-01T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCMonth(end.getUTCMonth() + 1);
 
     const [accounts, monthTransactions, allTransactions, categories] = await Promise.all([
-      prisma.account.findMany(),
-      prisma.transaction.findMany({ where: { date: { gte: start, lt: end } }, include: { category: true } }),
-      prisma.transaction.findMany({ include: { category: true } }),
-      prisma.category.findMany()
+      prisma.account.findMany({ where: { userId } }),
+      prisma.transaction.findMany({ where: { userId, date: { gte: start, lt: end } }, include: { category: true } }),
+      prisma.transaction.findMany({ where: { userId }, include: { category: true } }),
+      prisma.category.findMany({ where: { userId } })
     ]);
 
     const incomeTotal = monthTransactions
@@ -195,12 +220,14 @@ app.get("/dashboard", async (req, res, next) => {
 
 app.get("/transactions", async (req, res, next) => {
   try {
+    const userId = getUserId(req);
     const { month, type, categoryId } = req.query;
     const where: {
+      userId: string;
       type?: TransactionType;
       categoryId?: string;
       date?: { gte: Date; lt: Date };
-    } = {};
+    } = { userId };
 
     if (typeof type === "string" && ["INCOME", "EXPENSE"].includes(type)) where.type = type as TransactionType;
     if (typeof categoryId === "string" && categoryId) where.categoryId = categoryId;
@@ -224,8 +251,14 @@ app.get("/transactions", async (req, res, next) => {
 
 app.post("/transactions", async (req, res, next) => {
   try {
+    const userId = getUserId(req);
     const data = transactionSchema.parse(req.body);
-    const transaction = await prisma.transaction.create({ data });
+    if (!(await validateTransactionRefs(data, userId))) {
+      res.status(400).json({ message: "Categoria, conta ou cartao invalido para este usuario" });
+      return;
+    }
+
+    const transaction = await prisma.transaction.create({ data: { ...data, userId } });
     res.status(201).json(decimalToNumber(transaction));
   } catch (error) {
     next(error);
@@ -234,7 +267,17 @@ app.post("/transactions", async (req, res, next) => {
 
 app.put("/transactions/:id", async (req, res, next) => {
   try {
+    const userId = getUserId(req);
     const data = transactionSchema.parse(req.body);
+    const existing = await prisma.transaction.findFirst({ where: { id: req.params.id, userId } });
+    if (!existing) {
+      res.status(404).json({ message: "Lancamento nao encontrado" });
+      return;
+    }
+    if (!(await validateTransactionRefs(data, userId))) {
+      res.status(400).json({ message: "Categoria, conta ou cartao invalido para este usuario" });
+      return;
+    }
     const transaction = await prisma.transaction.update({ where: { id: req.params.id }, data });
     res.json(decimalToNumber(transaction));
   } catch (error) {
@@ -244,17 +287,24 @@ app.put("/transactions/:id", async (req, res, next) => {
 
 app.delete("/transactions/:id", async (req, res, next) => {
   try {
-    await prisma.transaction.delete({ where: { id: req.params.id } });
+    const userId = getUserId(req);
+    await prisma.transaction.deleteMany({ where: { id: req.params.id, userId } });
     res.status(204).send();
   } catch (error) {
     next(error);
   }
 });
 
-const crud = <T extends z.ZodTypeAny>(path: string, model: any, schema: T) => {
-  app.get(path, async (_req, res, next) => {
+const crud = <T extends z.ZodTypeAny>(
+  path: string,
+  model: any,
+  schema: T,
+  validate?: (data: z.infer<T>, userId: string) => Promise<boolean>
+) => {
+  app.get(path, async (req, res, next) => {
     try {
-      const items = await model.findMany({ orderBy: { createdAt: "desc" } });
+      const userId = getUserId(req);
+      const items = await model.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
       res.json(items.map(decimalToNumber));
     } catch (error) {
       next(error);
@@ -263,8 +313,14 @@ const crud = <T extends z.ZodTypeAny>(path: string, model: any, schema: T) => {
 
   app.post(path, async (req, res, next) => {
     try {
+      const userId = getUserId(req);
       const data = schema.parse(req.body);
-      const item = await model.create({ data });
+      if (validate && !(await validate(data, userId))) {
+        res.status(400).json({ message: "Dados relacionados invalidos para este usuario" });
+        return;
+      }
+      const createData = data as Record<string, unknown>;
+      const item = await model.create({ data: { ...createData, userId } });
       res.status(201).json(decimalToNumber(item));
     } catch (error) {
       next(error);
@@ -273,7 +329,17 @@ const crud = <T extends z.ZodTypeAny>(path: string, model: any, schema: T) => {
 
   app.put(`${path}/:id`, async (req, res, next) => {
     try {
+      const userId = getUserId(req);
       const data = schema.parse(req.body);
+      const existing = await model.findFirst({ where: { id: req.params.id, userId } });
+      if (!existing) {
+        res.status(404).json({ message: "Registro nao encontrado" });
+        return;
+      }
+      if (validate && !(await validate(data, userId))) {
+        res.status(400).json({ message: "Dados relacionados invalidos para este usuario" });
+        return;
+      }
       const item = await model.update({ where: { id: req.params.id }, data });
       res.json(decimalToNumber(item));
     } catch (error) {
@@ -283,7 +349,8 @@ const crud = <T extends z.ZodTypeAny>(path: string, model: any, schema: T) => {
 
   app.delete(`${path}/:id`, async (req, res, next) => {
     try {
-      await model.delete({ where: { id: req.params.id } });
+      const userId = getUserId(req);
+      await model.deleteMany({ where: { id: req.params.id, userId } });
       res.status(204).send();
     } catch (error) {
       next(error);
@@ -294,7 +361,7 @@ const crud = <T extends z.ZodTypeAny>(path: string, model: any, schema: T) => {
 crud("/categories", prisma.category, categorySchema);
 crud("/accounts", prisma.account, accountSchema);
 crud("/cards", prisma.card, cardSchema);
-crud("/recurring-expenses", prisma.recurringExpense, recurringSchema);
+crud("/recurring-expenses", prisma.recurringExpense, recurringSchema, validateRecurringRefs);
 crud("/goals", prisma.goal, goalSchema);
 
 if (process.env.NODE_ENV === "production") {

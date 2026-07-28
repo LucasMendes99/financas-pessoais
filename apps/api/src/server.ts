@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient, TransactionType } from "@prisma/client";
+import { Prisma, PrismaClient, TransactionType } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -391,6 +391,11 @@ if (process.env.NODE_ENV === "production") {
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (error instanceof z.ZodError) {
     res.status(400).json({ message: "Dados inválidos", issues: error.issues });
+    return;
+  }
+
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+    res.status(409).json({ message: "Este registro está em uso e não pode ser excluído agora." });
     return;
   }
 

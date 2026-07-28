@@ -26,11 +26,13 @@ import {
   LayoutDashboard,
   LogOut,
   Moon,
+  Pencil,
   Plus,
   ReceiptText,
   Sun,
   Tags,
   Target,
+  Trash2,
   WalletCards,
   X,
   ArrowRightLeft
@@ -186,9 +188,33 @@ export default function App() {
     await refreshDashboard();
   };
 
+  const updateTransaction = async (id: string, data: Omit<Transaction, "id">) => {
+    const updated = await api.updateTransaction(id, data);
+    setTransactions((current) => current.map((item) => (item.id === id ? updated : item)));
+    await refreshDashboard();
+  };
+
+  const deleteTransaction = async (id: string) => {
+    await api.deleteTransaction(id);
+    setTransactions((current) => current.filter((item) => item.id !== id));
+    await refreshDashboard();
+  };
+
   const createCategory = async (data: Omit<Category, "id">) => {
     const created = await api.createCategory(data);
     setCategories((current) => [created, ...current]);
+  };
+
+  const updateCategory = async (id: string, data: Omit<Category, "id">) => {
+    const updated = await api.updateCategory(id, data);
+    setCategories((current) => current.map((item) => (item.id === id ? updated : item)));
+    await refreshDashboard();
+  };
+
+  const deleteCategory = async (id: string) => {
+    await api.deleteCategory(id);
+    setCategories((current) => current.filter((item) => item.id !== id));
+    await refreshDashboard();
   };
 
   const createAccount = async (data: Omit<Account, "id">) => {
@@ -197,9 +223,31 @@ export default function App() {
     await refreshDashboard();
   };
 
+  const updateAccount = async (id: string, data: Omit<Account, "id">) => {
+    const updated = await api.updateAccount(id, data);
+    setAccounts((current) => current.map((item) => (item.id === id ? updated : item)));
+    await refreshDashboard();
+  };
+
+  const deleteAccount = async (id: string) => {
+    await api.deleteAccount(id);
+    setAccounts((current) => current.filter((item) => item.id !== id));
+    await refreshDashboard();
+  };
+
   const createCard = async (data: Omit<CardType, "id">) => {
     const created = await api.createCard(data);
     setCards((current) => [created, ...current]);
+  };
+
+  const updateCard = async (id: string, data: Omit<CardType, "id">) => {
+    const updated = await api.updateCard(id, data);
+    setCards((current) => current.map((item) => (item.id === id ? updated : item)));
+  };
+
+  const deleteCard = async (id: string) => {
+    await api.deleteCard(id);
+    setCards((current) => current.filter((item) => item.id !== id));
   };
 
   const createRecurringExpense = async (data: Omit<RecurringExpense, "id">) => {
@@ -207,9 +255,29 @@ export default function App() {
     setRecurring((current) => [created, ...current]);
   };
 
+  const updateRecurringExpense = async (id: string, data: Omit<RecurringExpense, "id">) => {
+    const updated = await api.updateRecurringExpense(id, data);
+    setRecurring((current) => current.map((item) => (item.id === id ? updated : item)));
+  };
+
+  const deleteRecurringExpense = async (id: string) => {
+    await api.deleteRecurringExpense(id);
+    setRecurring((current) => current.filter((item) => item.id !== id));
+  };
+
   const createGoal = async (data: Omit<Goal, "id">) => {
     const created = await api.createGoal(data);
     setGoals((current) => [created, ...current]);
+  };
+
+  const updateGoal = async (id: string, data: Omit<Goal, "id">) => {
+    const updated = await api.updateGoal(id, data);
+    setGoals((current) => current.map((item) => (item.id === id ? updated : item)));
+  };
+
+  const deleteGoal = async (id: string) => {
+    await api.deleteGoal(id);
+    setGoals((current) => current.filter((item) => item.id !== id));
   };
 
   const createTransfer = async (data: {
@@ -379,7 +447,15 @@ export default function App() {
                 <MonthlyChart data={dashboard?.monthly ?? []} />
                 <CategoryPie data={dashboard?.byCategory ?? []} />
               </div>
-              <TransactionsTable transactions={transactions.slice(0, 5)} categories={categories} title="Últimos lançamentos" />
+              <TransactionsTable
+                transactions={transactions.slice(0, 5)}
+                categories={categories}
+                accounts={accounts}
+                cards={cards}
+                title="Últimos lançamentos"
+                onUpdate={updateTransaction}
+                onDelete={deleteTransaction}
+              />
             </div>
           )}
 
@@ -403,17 +479,43 @@ export default function App() {
                   </button>
                 </div>
               </Card>
-              <TransactionForm categories={categories} accounts={accounts} cards={cards} onCreate={createTransactionAndRefresh} />
-              <TransactionsTable transactions={transactions} categories={categories} title="Lançamentos do mês" />
+              <TransactionForm categories={categories} accounts={accounts} cards={cards} onSubmit={createTransactionAndRefresh} />
+              <TransactionsTable
+                transactions={transactions}
+                categories={categories}
+                accounts={accounts}
+                cards={cards}
+                title="Lançamentos do mês"
+                onUpdate={updateTransaction}
+                onDelete={deleteTransaction}
+              />
             </div>
           )}
 
-          {view === "categories" && <CategoriesView categories={categories} onCreate={createCategory} />}
+          {view === "categories" && (
+            <CategoriesView categories={categories} onCreate={createCategory} onUpdate={updateCategory} onDelete={deleteCategory} />
+          )}
           {view === "accounts" && (
-            <AccountsView accounts={accounts} cards={cards} onCreateAccount={createAccount} onCreateCard={createCard} />
+            <AccountsView
+              accounts={accounts}
+              cards={cards}
+              onCreateAccount={createAccount}
+              onUpdateAccount={updateAccount}
+              onDeleteAccount={deleteAccount}
+              onCreateCard={createCard}
+              onUpdateCard={updateCard}
+              onDeleteCard={deleteCard}
+            />
           )}
           {view === "recurring" && (
-            <RecurringView recurring={recurring} categories={categories} accounts={accounts} onCreate={createRecurringExpense} />
+            <RecurringView
+              recurring={recurring}
+              categories={categories}
+              accounts={accounts}
+              onCreate={createRecurringExpense}
+              onUpdate={updateRecurringExpense}
+              onDelete={deleteRecurringExpense}
+            />
           )}
           {view === "charts" && (
             <div className="grid gap-5 xl:grid-cols-2">
@@ -421,7 +523,7 @@ export default function App() {
               <CategoryPie data={dashboard?.byCategory ?? []} />
             </div>
           )}
-          {view === "goals" && <GoalsView goals={goals} onCreate={createGoal} />}
+          {view === "goals" && <GoalsView goals={goals} onCreate={createGoal} onUpdate={updateGoal} onDelete={deleteGoal} />}
         </div>
       </main>
 
@@ -621,33 +723,43 @@ function TransactionForm({
   categories,
   accounts,
   cards,
-  onCreate,
+  onSubmit,
   title = "Cadastrar receita ou despesa",
   initialType = "EXPENSE",
   lockType = false,
-  requireCard = false
+  requireCard = false,
+  editingItem,
+  onCancelEdit
 }: {
   categories: Category[];
   accounts: Account[];
   cards: CardType[];
-  onCreate: (data: Omit<Transaction, "id">) => Promise<void>;
+  onSubmit: (data: Omit<Transaction, "id">) => Promise<void>;
   title?: string;
   initialType?: "INCOME" | "EXPENSE";
   lockType?: boolean;
   requireCard?: boolean;
+  editingItem?: Transaction | null;
+  onCancelEdit?: () => void;
 }) {
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [transactionType, setTransactionType] = useState<"INCOME" | "EXPENSE">(initialType);
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
-  const [selectedAccountId, setSelectedAccountId] = useState("");
-  const [selectedCardId, setSelectedCardId] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [description, setDescription] = useState(editingItem?.description ?? "");
+  const [amount, setAmount] = useState(editingItem ? String(editingItem.amount) : "");
+  const [transactionType, setTransactionType] = useState<"INCOME" | "EXPENSE">(editingItem?.type ?? initialType);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(editingItem?.categoryId ?? "");
+  const [selectedAccountId, setSelectedAccountId] = useState(editingItem?.accountId ?? "");
+  const [selectedCardId, setSelectedCardId] = useState(editingItem?.cardId ?? "");
+  const [date, setDate] = useState(editingItem?.date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
   const availableCategories = categories.filter((item) => !item.type || item.type === transactionType);
 
   useEffect(() => {
-    setTransactionType(initialType);
-  }, [initialType]);
+    setDescription(editingItem?.description ?? "");
+    setAmount(editingItem ? String(editingItem.amount) : "");
+    setTransactionType(editingItem?.type ?? initialType);
+    setSelectedCategoryId(editingItem?.categoryId ?? "");
+    setSelectedAccountId(editingItem?.accountId ?? accounts[0]?.id ?? "");
+    setSelectedCardId(editingItem?.cardId ?? "");
+    setDate(editingItem?.date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+  }, [accounts, editingItem, initialType]);
 
   useEffect(() => {
     if (!availableCategories.some((item) => item.id === selectedCategoryId)) {
@@ -662,7 +774,7 @@ function TransactionForm({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!description.trim() || !amount || !selectedCategoryId || (requireCard && !selectedCardId)) return;
-    await onCreate({
+    await onSubmit({
       description: description.trim(),
       amount: Number(amount),
       type: transactionType,
@@ -674,6 +786,7 @@ function TransactionForm({
     });
     setDescription("");
     setAmount("");
+    onCancelEdit?.();
   };
 
   const canSubmit = Boolean(description.trim() && amount && selectedCategoryId && (!requireCard || selectedCardId));
@@ -710,15 +823,61 @@ function TransactionForm({
           <option value="">{requireCard ? "Selecione um cartão" : "Sem cartão"}</option>
           {cards.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
-        <button type="submit" className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-slate-950 lg:col-span-2" disabled={!canSubmit}>Salvar lançamento</button>
+        <button type="submit" className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-slate-950 lg:col-span-2" disabled={!canSubmit}>
+          {editingItem ? "Atualizar lançamento" : "Salvar lançamento"}
+        </button>
+        {editingItem && (
+          <button type="button" className="h-10 rounded-lg border border-slate-200 px-4 text-sm font-medium dark:border-slate-700 lg:col-span-2" onClick={onCancelEdit}>
+            Cancelar edição
+          </button>
+        )}
       </form>
     </Card>
   );
 }
 
-function TransactionsTable({ transactions, categories, title }: { transactions: Transaction[]; categories: Category[]; title: string }) {
+function TransactionsTable({
+  transactions,
+  categories,
+  accounts,
+  cards,
+  title,
+  onUpdate,
+  onDelete
+}: {
+  transactions: Transaction[];
+  categories: Category[];
+  accounts: Account[];
+  cards: CardType[];
+  title: string;
+  onUpdate: (id: string, data: Omit<Transaction, "id">) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState<Transaction | null>(null);
+
+  const confirmDelete = async (item: Transaction) => {
+    if (!window.confirm(`Excluir "${item.description}"?`)) return;
+    await onDelete(item.id);
+  };
+
   return (
     <Card title={title}>
+      {editing && (
+        <div className="mb-4">
+          <TransactionForm
+            title="Editar lançamento"
+            categories={categories}
+            accounts={accounts}
+            cards={cards}
+            editingItem={editing}
+            onCancelEdit={() => setEditing(null)}
+            onSubmit={async (data) => {
+              await onUpdate(editing.id, data);
+              setEditing(null);
+            }}
+          />
+        </div>
+      )}
       {transactions.length === 0 ? (
         <EmptyState message="Nenhum lançamento cadastrado ainda." />
       ) : (
@@ -731,14 +890,15 @@ function TransactionsTable({ transactions, categories, title }: { transactions: 
               <th className="pb-3">Data</th>
               <th className="pb-3">Tipo</th>
               <th className="pb-3 text-right">Valor</th>
+              <th className="pb-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {transactions.map((item) => (
               <tr key={item.id}>
-                <td className="py-3 font-medium text-slate-900">{item.description}</td>
-                <td className="py-3 text-slate-600">{categoryName(categories, item.categoryId)}</td>
-                <td className="py-3 text-slate-600">{formatDate(item.date)}</td>
+                <td className="py-3 font-medium text-slate-900 dark:text-slate-100">{item.description}</td>
+                <td className="py-3 text-slate-600 dark:text-slate-300">{categoryName(categories, item.categoryId)}</td>
+                <td className="py-3 text-slate-600 dark:text-slate-300">{formatDate(item.date)}</td>
                 <td className="py-3">
                   <span className={`rounded-full px-2 py-1 text-xs ${item.type === "INCOME" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
                     {item.type === "INCOME" ? "Receita" : "Despesa"}
@@ -747,6 +907,9 @@ function TransactionsTable({ transactions, categories, title }: { transactions: 
                 <td className={`py-3 text-right font-semibold ${item.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}>
                   {item.type === "INCOME" ? "+" : "-"} {brl.format(item.amount)}
                 </td>
+                <td className="py-3">
+                  <RowActions onEdit={() => setEditing(item)} onDelete={() => confirmDelete(item)} />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -754,6 +917,19 @@ function TransactionsTable({ transactions, categories, title }: { transactions: 
       </div>
       )}
     </Card>
+  );
+}
+
+function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div className="flex justify-end gap-2">
+      <button className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" onClick={onEdit} title="Editar">
+        <Pencil size={15} />
+      </button>
+      <button className="grid h-8 w-8 place-items-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950" onClick={onDelete} title="Excluir">
+        <Trash2 size={15} />
+      </button>
+    </div>
   );
 }
 
@@ -896,7 +1072,7 @@ function QuickActionModal({
             categories={categories}
             accounts={accounts}
             cards={cards}
-            onCreate={onCreateTransaction}
+            onSubmit={onCreateTransaction}
           />
         )}
         {action === "income" && (
@@ -907,7 +1083,7 @@ function QuickActionModal({
             categories={categories}
             accounts={accounts}
             cards={cards}
-            onCreate={onCreateTransaction}
+            onSubmit={onCreateTransaction}
           />
         )}
         {action === "card-expense" && (
@@ -919,7 +1095,7 @@ function QuickActionModal({
             categories={categories}
             accounts={accounts}
             cards={cards}
-            onCreate={onCreateTransaction}
+            onSubmit={onCreateTransaction}
           />
         )}
         {action === "transfer" && <TransferForm accounts={accounts} onCreate={onCreateTransfer} />}
@@ -994,20 +1170,35 @@ function TransferForm({
   );
 }
 
-function CategoryForm({ onCreate }: { onCreate: (data: Omit<Category, "id">) => Promise<void> }) {
-  const [name, setName] = useState("");
-  const [type, setType] = useState<TransactionType>("EXPENSE");
-  const [color, setColor] = useState("#0F766E");
+function CategoryForm({
+  onSubmit,
+  editingItem,
+  onCancelEdit
+}: {
+  onSubmit: (data: Omit<Category, "id">) => Promise<void>;
+  editingItem?: Category | null;
+  onCancelEdit?: () => void;
+}) {
+  const [name, setName] = useState(editingItem?.name ?? "");
+  const [type, setType] = useState<TransactionType>((editingItem?.type as TransactionType | null) ?? "EXPENSE");
+  const [color, setColor] = useState(editingItem?.color ?? "#0F766E");
+
+  useEffect(() => {
+    setName(editingItem?.name ?? "");
+    setType((editingItem?.type as TransactionType | null) ?? "EXPENSE");
+    setColor(editingItem?.color ?? "#0F766E");
+  }, [editingItem]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim()) return;
-    await onCreate({ name: name.trim(), color, icon: "tag", type });
+    await onSubmit({ name: name.trim(), color, icon: editingItem?.icon ?? "tag", type });
     setName("");
+    onCancelEdit?.();
   };
 
   return (
-    <Card title="Cadastrar categoria">
+    <Card title={editingItem ? "Editar categoria" : "Cadastrar categoria"}>
       <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}>
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm md:col-span-2" placeholder="Nome da categoria" value={name} onChange={(event) => setName(event.target.value)} />
         <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" value={type} onChange={(event) => setType(event.target.value as TransactionType)}>
@@ -1016,28 +1207,50 @@ function CategoryForm({ onCreate }: { onCreate: (data: Omit<Category, "id">) => 
         </select>
         <div className="flex gap-2">
           <input className="h-10 w-14 rounded-lg border border-slate-200 p-1" type="color" value={color} onChange={(event) => setColor(event.target.value)} />
-          <button className="h-10 flex-1 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white" type="submit">Salvar</button>
+          <button className="h-10 flex-1 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white dark:bg-white dark:text-slate-950" type="submit">
+            {editingItem ? "Atualizar" : "Salvar"}
+          </button>
         </div>
+        {editingItem && (
+          <button className="h-10 rounded-lg border border-slate-200 px-4 text-sm font-medium dark:border-slate-700 md:col-span-4" type="button" onClick={onCancelEdit}>
+            Cancelar edição
+          </button>
+        )}
       </form>
     </Card>
   );
 }
 
-function AccountForm({ onCreate }: { onCreate: (data: Omit<Account, "id">) => Promise<void> }) {
-  const [name, setName] = useState("");
-  const [type, setType] = useState<Account["type"]>("CHECKING");
-  const [balance, setBalance] = useState("0");
+function AccountForm({
+  onSubmit,
+  editingItem,
+  onCancelEdit
+}: {
+  onSubmit: (data: Omit<Account, "id">) => Promise<void>;
+  editingItem?: Account | null;
+  onCancelEdit?: () => void;
+}) {
+  const [name, setName] = useState(editingItem?.name ?? "");
+  const [type, setType] = useState<Account["type"]>(editingItem?.type ?? "CHECKING");
+  const [balance, setBalance] = useState(editingItem ? String(editingItem.balance) : "0");
+
+  useEffect(() => {
+    setName(editingItem?.name ?? "");
+    setType(editingItem?.type ?? "CHECKING");
+    setBalance(editingItem ? String(editingItem.balance) : "0");
+  }, [editingItem]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim()) return;
-    await onCreate({ name: name.trim(), type, balance: Number(balance) });
+    await onSubmit({ name: name.trim(), type, balance: Number(balance) });
     setName("");
     setBalance("0");
+    onCancelEdit?.();
   };
 
   return (
-    <Card title="Cadastrar conta">
+    <Card title={editingItem ? "Editar conta" : "Cadastrar conta"}>
       <form className="grid gap-3 sm:grid-cols-2" onSubmit={submit}>
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm sm:col-span-2" placeholder="Nome da conta" value={name} onChange={(event) => setName(event.target.value)} />
         <select className="h-10 rounded-lg border border-slate-200 px-3 text-sm" value={type} onChange={(event) => setType(event.target.value as Account["type"])}>
@@ -1047,30 +1260,54 @@ function AccountForm({ onCreate }: { onCreate: (data: Omit<Account, "id">) => Pr
           <option value="INVESTMENT">Investimento</option>
         </select>
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" type="number" step="0.01" value={balance} onChange={(event) => setBalance(event.target.value)} />
-        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white sm:col-span-2" type="submit">Salvar conta</button>
+        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white dark:bg-white dark:text-slate-950 sm:col-span-2" type="submit">
+          {editingItem ? "Atualizar conta" : "Salvar conta"}
+        </button>
+        {editingItem && (
+          <button className="h-10 rounded-lg border border-slate-200 px-4 text-sm font-medium dark:border-slate-700 sm:col-span-2" type="button" onClick={onCancelEdit}>
+            Cancelar edição
+          </button>
+        )}
       </form>
     </Card>
   );
 }
 
-function CardForm({ onCreate }: { onCreate: (data: Omit<CardType, "id">) => Promise<void> }) {
-  const [name, setName] = useState("");
-  const [brand, setBrand] = useState("");
-  const [limit, setLimit] = useState("");
-  const [closingDay, setClosingDay] = useState("20");
-  const [dueDay, setDueDay] = useState("27");
+function CardForm({
+  onSubmit,
+  editingItem,
+  onCancelEdit
+}: {
+  onSubmit: (data: Omit<CardType, "id">) => Promise<void>;
+  editingItem?: CardType | null;
+  onCancelEdit?: () => void;
+}) {
+  const [name, setName] = useState(editingItem?.name ?? "");
+  const [brand, setBrand] = useState(editingItem?.brand ?? "");
+  const [limit, setLimit] = useState(editingItem ? String(editingItem.limit) : "");
+  const [closingDay, setClosingDay] = useState(editingItem ? String(editingItem.closingDay) : "20");
+  const [dueDay, setDueDay] = useState(editingItem ? String(editingItem.dueDay) : "27");
+
+  useEffect(() => {
+    setName(editingItem?.name ?? "");
+    setBrand(editingItem?.brand ?? "");
+    setLimit(editingItem ? String(editingItem.limit) : "");
+    setClosingDay(editingItem ? String(editingItem.closingDay) : "20");
+    setDueDay(editingItem ? String(editingItem.dueDay) : "27");
+  }, [editingItem]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim() || !brand.trim() || !limit) return;
-    await onCreate({ name: name.trim(), brand: brand.trim(), limit: Number(limit), closingDay: Number(closingDay), dueDay: Number(dueDay) });
+    await onSubmit({ name: name.trim(), brand: brand.trim(), limit: Number(limit), closingDay: Number(closingDay), dueDay: Number(dueDay) });
     setName("");
     setBrand("");
     setLimit("");
+    onCancelEdit?.();
   };
 
   return (
-    <Card title="Cadastrar cartão">
+    <Card title={editingItem ? "Editar cartão" : "Cadastrar cartão"}>
       <form className="grid gap-3 sm:grid-cols-2" onSubmit={submit}>
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Nome" value={name} onChange={(event) => setName(event.target.value)} />
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Bandeira" value={brand} onChange={(event) => setBrand(event.target.value)} />
@@ -1079,7 +1316,14 @@ function CardForm({ onCreate }: { onCreate: (data: Omit<CardType, "id">) => Prom
           <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" type="number" min="1" max="31" value={closingDay} onChange={(event) => setClosingDay(event.target.value)} />
           <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" type="number" min="1" max="31" value={dueDay} onChange={(event) => setDueDay(event.target.value)} />
         </div>
-        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white dark:bg-white dark:text-slate-950 sm:col-span-2" type="submit">Salvar cartão</button>
+        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white dark:bg-white dark:text-slate-950 sm:col-span-2" type="submit">
+          {editingItem ? "Atualizar cartão" : "Salvar cartão"}
+        </button>
+        {editingItem && (
+          <button className="h-10 rounded-lg border border-slate-200 px-4 text-sm font-medium dark:border-slate-700 sm:col-span-2" type="button" onClick={onCancelEdit}>
+            Cancelar edição
+          </button>
+        )}
       </form>
     </Card>
   );
@@ -1088,18 +1332,30 @@ function CardForm({ onCreate }: { onCreate: (data: Omit<CardType, "id">) => Prom
 function RecurringForm({
   categories,
   accounts,
-  onCreate
+  onSubmit,
+  editingItem,
+  onCancelEdit
 }: {
   categories: Category[];
   accounts: Account[];
-  onCreate: (data: Omit<RecurringExpense, "id">) => Promise<void>;
+  onSubmit: (data: Omit<RecurringExpense, "id">) => Promise<void>;
+  editingItem?: RecurringExpense | null;
+  onCancelEdit?: () => void;
 }) {
   const expenseCategories = categories.filter((item) => item.type !== "INCOME");
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [dueDay, setDueDay] = useState("5");
-  const [categoryId, setCategoryId] = useState("");
-  const [accountId, setAccountId] = useState("");
+  const [description, setDescription] = useState(editingItem?.description ?? "");
+  const [amount, setAmount] = useState(editingItem ? String(editingItem.amount) : "");
+  const [dueDay, setDueDay] = useState(editingItem ? String(editingItem.dueDay) : "5");
+  const [categoryId, setCategoryId] = useState(editingItem?.categoryId ?? "");
+  const [accountId, setAccountId] = useState(editingItem?.accountId ?? "");
+
+  useEffect(() => {
+    setDescription(editingItem?.description ?? "");
+    setAmount(editingItem ? String(editingItem.amount) : "");
+    setDueDay(editingItem ? String(editingItem.dueDay) : "5");
+    setCategoryId(editingItem?.categoryId ?? expenseCategories[0]?.id ?? "");
+    setAccountId(editingItem?.accountId ?? accounts[0]?.id ?? "");
+  }, [accounts, editingItem, expenseCategories]);
 
   useEffect(() => {
     setCategoryId((current) => (expenseCategories.some((item) => item.id === current) ? current : expenseCategories[0]?.id ?? ""));
@@ -1112,13 +1368,14 @@ function RecurringForm({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!description.trim() || !amount || !categoryId) return;
-    await onCreate({ description: description.trim(), amount: Number(amount), dueDay: Number(dueDay), categoryId, accountId: accountId || null, active: true });
+    await onSubmit({ description: description.trim(), amount: Number(amount), dueDay: Number(dueDay), categoryId, accountId: accountId || null, active: editingItem?.active ?? true });
     setDescription("");
     setAmount("");
+    onCancelEdit?.();
   };
 
   return (
-    <Card title="Cadastrar fixa">
+    <Card title={editingItem ? "Editar despesa fixa" : "Cadastrar fixa"}>
       {expenseCategories.length === 0 && <p className="mb-3 text-sm text-slate-500">Cadastre uma categoria de despesa antes.</p>}
       <form className="grid gap-3 lg:grid-cols-5" onSubmit={submit}>
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-slate-700 dark:bg-slate-900 lg:col-span-2" placeholder="Descrição" value={description} onChange={(event) => setDescription(event.target.value)} />
@@ -1132,31 +1389,55 @@ function RecurringForm({
           <option value="">Sem conta</option>
           {accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
-        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 lg:col-span-3" disabled={!categoryId} type="submit">Salvar fixa</button>
+        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-slate-950 lg:col-span-3" disabled={!categoryId} type="submit">
+          {editingItem ? "Atualizar fixa" : "Salvar fixa"}
+        </button>
+        {editingItem && (
+          <button className="h-10 rounded-lg border border-slate-200 px-4 text-sm font-medium dark:border-slate-700 lg:col-span-2" type="button" onClick={onCancelEdit}>
+            Cancelar edição
+          </button>
+        )}
       </form>
     </Card>
   );
 }
 
-function GoalForm({ onCreate }: { onCreate: (data: Omit<Goal, "id">) => Promise<void> }) {
-  const [name, setName] = useState("");
-  const [targetAmount, setTargetAmount] = useState("");
-  const [currentAmount, setCurrentAmount] = useState("0");
-  const [targetDate, setTargetDate] = useState("");
-  const [type, setType] = useState<Goal["type"]>("GOAL");
+function GoalForm({
+  onSubmit,
+  editingItem,
+  onCancelEdit
+}: {
+  onSubmit: (data: Omit<Goal, "id">) => Promise<void>;
+  editingItem?: Goal | null;
+  onCancelEdit?: () => void;
+}) {
+  const [name, setName] = useState(editingItem?.name ?? "");
+  const [targetAmount, setTargetAmount] = useState(editingItem ? String(editingItem.targetAmount) : "");
+  const [currentAmount, setCurrentAmount] = useState(editingItem ? String(editingItem.currentAmount) : "0");
+  const [targetDate, setTargetDate] = useState(editingItem?.targetDate?.slice(0, 10) ?? "");
+  const [type, setType] = useState<Goal["type"]>(editingItem?.type ?? "GOAL");
+
+  useEffect(() => {
+    setName(editingItem?.name ?? "");
+    setTargetAmount(editingItem ? String(editingItem.targetAmount) : "");
+    setCurrentAmount(editingItem ? String(editingItem.currentAmount) : "0");
+    setTargetDate(editingItem?.targetDate?.slice(0, 10) ?? "");
+    setType(editingItem?.type ?? "GOAL");
+  }, [editingItem]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim() || !targetAmount) return;
-    await onCreate({ name: name.trim(), targetAmount: Number(targetAmount), currentAmount: Number(currentAmount), targetDate: targetDate || null, type });
+    await onSubmit({ name: name.trim(), targetAmount: Number(targetAmount), currentAmount: Number(currentAmount), targetDate: targetDate || null, type });
     setName("");
     setTargetAmount("");
     setCurrentAmount("0");
     setTargetDate("");
+    onCancelEdit?.();
   };
 
   return (
-    <Card title="Cadastrar meta">
+    <Card title={editingItem ? "Editar meta" : "Cadastrar meta"}>
       <form className="grid gap-3 lg:grid-cols-5" onSubmit={submit}>
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm lg:col-span-2" placeholder="Nome da meta" value={name} onChange={(event) => setName(event.target.value)} />
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Valor alvo" type="number" min="0" step="0.01" value={targetAmount} onChange={(event) => setTargetAmount(event.target.value)} />
@@ -1166,28 +1447,62 @@ function GoalForm({ onCreate }: { onCreate: (data: Omit<Goal, "id">) => Promise<
           <option value="EMERGENCY_RESERVE">Reserva</option>
         </select>
         <input className="h-10 rounded-lg border border-slate-200 px-3 text-sm lg:col-span-2" type="date" value={targetDate} onChange={(event) => setTargetDate(event.target.value)} />
-        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white lg:col-span-3" type="submit">Salvar meta</button>
+        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white dark:bg-white dark:text-slate-950 lg:col-span-3" type="submit">
+          {editingItem ? "Atualizar meta" : "Salvar meta"}
+        </button>
+        {editingItem && (
+          <button className="h-10 rounded-lg border border-slate-200 px-4 text-sm font-medium dark:border-slate-700 lg:col-span-2" type="button" onClick={onCancelEdit}>
+            Cancelar edição
+          </button>
+        )}
       </form>
     </Card>
   );
 }
 
-function CategoriesView({ categories, onCreate }: { categories: Category[]; onCreate: (data: Omit<Category, "id">) => Promise<void> }) {
+function CategoriesView({
+  categories,
+  onCreate,
+  onUpdate,
+  onDelete
+}: {
+  categories: Category[];
+  onCreate: (data: Omit<Category, "id">) => Promise<void>;
+  onUpdate: (id: string, data: Omit<Category, "id">) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState<Category | null>(null);
+  const confirmDelete = async (item: Category) => {
+    if (!window.confirm(`Excluir "${item.name}"?`)) return;
+    await onDelete(item.id);
+  };
+
   return (
     <div className="space-y-5">
-      <CategoryForm onCreate={onCreate} />
+      <CategoryForm
+        editingItem={editing}
+        onCancelEdit={() => setEditing(null)}
+        onSubmit={async (data) => {
+          if (editing) await onUpdate(editing.id, data);
+          else await onCreate(data);
+          setEditing(null);
+        }}
+      />
       {categories.length === 0 ? (
         <Card><EmptyState message="Nenhuma categoria cadastrada ainda." /></Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {categories.map((item) => (
             <Card key={item.id}>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
                 <span className="h-4 w-4 rounded-full" style={{ background: item.color }} />
                 <div>
                   <p className="font-semibold">{item.name}</p>
                   <p className="text-sm text-slate-500">{item.type === "INCOME" ? "Receita" : item.type === "EXPENSE" ? "Despesa" : "Geral"}</p>
                 </div>
+                </div>
+                <RowActions onEdit={() => setEditing(item)} onDelete={() => confirmDelete(item)} />
               </div>
             </Card>
           ))}
@@ -1201,29 +1516,67 @@ function AccountsView({
   accounts,
   cards,
   onCreateAccount,
-  onCreateCard
+  onUpdateAccount,
+  onDeleteAccount,
+  onCreateCard,
+  onUpdateCard,
+  onDeleteCard
 }: {
   accounts: Account[];
   cards: CardType[];
   onCreateAccount: (data: Omit<Account, "id">) => Promise<void>;
+  onUpdateAccount: (id: string, data: Omit<Account, "id">) => Promise<void>;
+  onDeleteAccount: (id: string) => Promise<void>;
   onCreateCard: (data: Omit<CardType, "id">) => Promise<void>;
+  onUpdateCard: (id: string, data: Omit<CardType, "id">) => Promise<void>;
+  onDeleteCard: (id: string) => Promise<void>;
 }) {
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editingCard, setEditingCard] = useState<CardType | null>(null);
+  const confirmDeleteAccount = async (item: Account) => {
+    if (!window.confirm(`Excluir "${item.name}"?`)) return;
+    await onDeleteAccount(item.id);
+  };
+  const confirmDeleteCard = async (item: CardType) => {
+    if (!window.confirm(`Excluir "${item.name}"?`)) return;
+    await onDeleteCard(item.id);
+  };
+
   return (
     <div className="space-y-5">
       <div className="grid gap-5 xl:grid-cols-2">
-        <AccountForm onCreate={onCreateAccount} />
-        <CardForm onCreate={onCreateCard} />
+        <AccountForm
+          editingItem={editingAccount}
+          onCancelEdit={() => setEditingAccount(null)}
+          onSubmit={async (data) => {
+            if (editingAccount) await onUpdateAccount(editingAccount.id, data);
+            else await onCreateAccount(data);
+            setEditingAccount(null);
+          }}
+        />
+        <CardForm
+          editingItem={editingCard}
+          onCancelEdit={() => setEditingCard(null)}
+          onSubmit={async (data) => {
+            if (editingCard) await onUpdateCard(editingCard.id, data);
+            else await onCreateCard(data);
+            setEditingCard(null);
+          }}
+        />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
       <Card title="Contas">
         <div className="space-y-3">
           {accounts.length === 0 ? <EmptyState message="Nenhuma conta cadastrada ainda." /> : accounts.map((item) => (
-            <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-100 p-3">
+            <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 p-3 dark:border-slate-800">
               <div>
                 <p className="font-medium">{item.name}</p>
                 <p className="text-sm text-slate-500">{item.type}</p>
               </div>
-              <p className="font-semibold">{brl.format(item.balance)}</p>
+              <div className="flex items-center gap-3">
+                <p className="font-semibold">{brl.format(item.balance)}</p>
+                <RowActions onEdit={() => setEditingAccount(item)} onDelete={() => confirmDeleteAccount(item)} />
+              </div>
             </div>
           ))}
         </div>
@@ -1231,10 +1584,13 @@ function AccountsView({
       <Card title="Cartões">
         <div className="space-y-3">
           {cards.length === 0 ? <EmptyState message="Nenhum cartão cadastrado ainda." /> : cards.map((item) => (
-            <div key={item.id} className="rounded-lg border border-slate-100 p-3">
+            <div key={item.id} className="rounded-lg border border-slate-100 p-3 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <p className="font-medium">{item.name}</p>
-                <p className="text-sm text-slate-500">{item.brand}</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-sm text-slate-500">{item.brand}</p>
+                  <RowActions onEdit={() => setEditingCard(item)} onDelete={() => confirmDeleteCard(item)} />
+                </div>
               </div>
               <p className="mt-2 text-sm text-slate-600">Limite {brl.format(item.limit)} | Vence dia {item.dueDay}</p>
             </div>
@@ -1250,27 +1606,50 @@ function RecurringView({
   recurring,
   categories,
   accounts,
-  onCreate
+  onCreate,
+  onUpdate,
+  onDelete
 }: {
   recurring: RecurringExpense[];
   categories: Category[];
   accounts: Account[];
   onCreate: (data: Omit<RecurringExpense, "id">) => Promise<void>;
+  onUpdate: (id: string, data: Omit<RecurringExpense, "id">) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
+  const [editing, setEditing] = useState<RecurringExpense | null>(null);
+  const confirmDelete = async (item: RecurringExpense) => {
+    if (!window.confirm(`Excluir "${item.description}"?`)) return;
+    await onDelete(item.id);
+  };
+
   return (
     <div className="space-y-5">
-      <RecurringForm categories={categories} accounts={accounts} onCreate={onCreate} />
+      <RecurringForm
+        categories={categories}
+        accounts={accounts}
+        editingItem={editing}
+        onCancelEdit={() => setEditing(null)}
+        onSubmit={async (data) => {
+          if (editing) await onUpdate(editing.id, data);
+          else await onCreate(data);
+          setEditing(null);
+        }}
+      />
       <Card title="Despesas fixas e recorrentes">
         {recurring.length === 0 ? <EmptyState message="Nenhuma despesa fixa cadastrada ainda." /> : (
         <div className="grid gap-3 md:grid-cols-2">
           {recurring.map((item) => (
-          <div key={item.id} className="rounded-lg border border-slate-100 p-4">
+          <div key={item.id} className="rounded-lg border border-slate-100 p-4 dark:border-slate-800">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-semibold">{item.description}</p>
                 <p className="text-sm text-slate-500">{categoryName(categories, item.categoryId)} | todo dia {item.dueDay}</p>
               </div>
-              <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700">{item.active ? "Ativa" : "Pausada"}</span>
+              <div className="flex items-center gap-3">
+                <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700">{item.active ? "Ativa" : "Pausada"}</span>
+                <RowActions onEdit={() => setEditing(item)} onDelete={() => confirmDelete(item)} />
+              </div>
             </div>
             <p className="mt-4 text-xl font-semibold">{brl.format(item.amount)}</p>
           </div>
@@ -1282,10 +1661,34 @@ function RecurringView({
   );
 }
 
-function GoalsView({ goals, onCreate }: { goals: Goal[]; onCreate: (data: Omit<Goal, "id">) => Promise<void> }) {
+function GoalsView({
+  goals,
+  onCreate,
+  onUpdate,
+  onDelete
+}: {
+  goals: Goal[];
+  onCreate: (data: Omit<Goal, "id">) => Promise<void>;
+  onUpdate: (id: string, data: Omit<Goal, "id">) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState<Goal | null>(null);
+  const confirmDelete = async (item: Goal) => {
+    if (!window.confirm(`Excluir "${item.name}"?`)) return;
+    await onDelete(item.id);
+  };
+
   return (
     <div className="space-y-5">
-      <GoalForm onCreate={onCreate} />
+      <GoalForm
+        editingItem={editing}
+        onCancelEdit={() => setEditing(null)}
+        onSubmit={async (data) => {
+          if (editing) await onUpdate(editing.id, data);
+          else await onCreate(data);
+          setEditing(null);
+        }}
+      />
       {goals.length === 0 ? <Card><EmptyState message="Nenhuma meta cadastrada ainda." /></Card> : (
       <div className="grid gap-4 md:grid-cols-2">
         {goals.map((item) => {
@@ -1297,7 +1700,10 @@ function GoalsView({ goals, onCreate }: { goals: Goal[]; onCreate: (data: Omit<G
                 <p className="font-semibold">{item.name}</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">{item.type === "EMERGENCY_RESERVE" ? "Reserva de emergência" : "Meta financeira"}</p>
               </div>
-              {item.type === "EMERGENCY_RESERVE" ? <Flag size={20} className="text-emerald-700" /> : <Target size={20} className="text-blue-700" />}
+              <div className="flex items-center gap-3">
+                {item.type === "EMERGENCY_RESERVE" ? <Flag size={20} className="text-emerald-700" /> : <Target size={20} className="text-blue-700" />}
+                <RowActions onEdit={() => setEditing(item)} onDelete={() => confirmDelete(item)} />
+              </div>
             </div>
             <div className="mt-5">
               <div className="mb-2 flex justify-between text-sm">

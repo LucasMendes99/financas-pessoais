@@ -27,8 +27,27 @@ const currentDir = dirname(currentFile);
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+const defaultWebOrigins = [
+  "http://localhost:5180",
+  "http://localhost:5173",
+  "https://financas-pessoais-two-beige.vercel.app"
+];
+const webOrigins = (process.env.WEB_ORIGIN ? process.env.WEB_ORIGIN.split(",") : defaultWebOrigins).map((origin) =>
+  origin.trim()
+);
 
-app.use(cors({ origin: process.env.WEB_ORIGIN ?? ["http://localhost:5180", "http://localhost:5173"] }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || webOrigins.includes(origin) || /^https:\/\/financas-pessoais.*\.vercel\.app$/.test(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Origem nao permitida pelo CORS"));
+    }
+  })
+);
 app.use(express.json());
 
 const requireAuth: express.RequestHandler = async (req, res, next) => {

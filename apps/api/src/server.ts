@@ -26,8 +26,11 @@ const app = express();
 const port = Number(process.env.PORT ?? 3333);
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = dirname(currentFile);
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.SUPABASE_URL ?? "https://nmgksbiafdpokaxljiqg.supabase.co";
+const supabaseKey =
+  process.env.SUPABASE_PUBLISHABLE_KEY ??
+  process.env.SUPABASE_ANON_KEY ??
+  "sb_publishable_TkYMHRQ5yz7fVssYxKYiyA_JNVDPRD9";
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 const defaultWebOrigins = [
   "http://localhost:5180",

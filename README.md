@@ -54,3 +54,15 @@ npm run dev
 Frontend: http://localhost:5180
 
 API: http://localhost:3333
+
+## Deploy no Render
+
+No Render, configure `DATABASE_URL` usando o pooler IPv4 do Supabase, nao a URL direta `db...supabase.co:5432`.
+
+Formato:
+
+```bash
+DATABASE_URL="postgresql://postgres.nmgksbiafdpokaxljiqg:SENHA_DO_BANCO@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?schema=public"
+```
+
+Use a senha do banco do Supabase no lugar de `SENHA_DO_BANCO`. Se a senha tiver caracteres especiais, use a connection string copiada em **Supabase > Connect > Session pooler** para evitar erro de escape.

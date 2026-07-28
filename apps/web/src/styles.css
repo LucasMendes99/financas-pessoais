@@ -25,3 +25,17 @@ input,
 select {
   font: inherit;
 }
+
+.dark body {
+  background: #020617;
+}
+
+.dark input,
+.dark select {
+  color: #e2e8f0;
+  background: #0f172a;
+}
+
+.dark input::placeholder {
+  color: #94a3b8;
+}

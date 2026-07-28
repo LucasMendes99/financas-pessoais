@@ -16,7 +16,7 @@ export const accounts: Account[] = [
 ];
 
 export const cards: Card[] = [
-  { id: "card-1", name: "Cartao Nubank", brand: "Mastercard", limit: 6000, closingDay: 20, dueDay: 27 }
+  { id: "card-1", name: "Cartão Nubank", brand: "Mastercard", limit: 6000, closingDay: 20, dueDay: 27 }
 ];
 
 export const transactions: Transaction[] = [
@@ -35,7 +35,7 @@ export const recurringExpenses: RecurringExpense[] = [
 ];
 
 export const goals: Goal[] = [
-  { id: "goal-1", name: "Reserva de emergencia", targetAmount: 30000, currentAmount: 8500, type: "EMERGENCY_RESERVE" },
+  { id: "goal-1", name: "Reserva de emergência", targetAmount: 30000, currentAmount: 8500, type: "EMERGENCY_RESERVE" },
   { id: "goal-2", name: "Viagem", targetAmount: 12000, currentAmount: 2600, targetDate: "2026-12-20", type: "GOAL" }
 ];
 

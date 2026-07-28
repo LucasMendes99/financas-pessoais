@@ -49,7 +49,7 @@ app.use(
         return;
       }
 
-      callback(new Error("Origem nao permitida pelo CORS"));
+      callback(new Error("Origem não permitida pelo CORS"));
     }
   })
 );
@@ -60,19 +60,19 @@ const requireAuth: express.RequestHandler = async (req, res, next) => {
   const token = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : null;
 
   if (!token) {
-    res.status(401).json({ message: "Token de autenticacao ausente" });
+    res.status(401).json({ message: "Token de autenticação ausente" });
     return;
   }
 
   if (!supabase) {
-    res.status(500).json({ message: "Supabase nao configurado na API" });
+    res.status(500).json({ message: "Supabase não configurado na API" });
     return;
   }
 
   const { data, error } = await supabase.auth.getUser(token);
 
   if (error || !data.user) {
-    res.status(401).json({ message: "Token de autenticacao invalido" });
+    res.status(401).json({ message: "Token de autenticação inválido" });
     return;
   }
 
@@ -257,7 +257,7 @@ app.post("/transactions", async (req, res, next) => {
     const userId = getUserId(req);
     const data = transactionSchema.parse(req.body);
     if (!(await validateTransactionRefs(data, userId))) {
-      res.status(400).json({ message: "Categoria, conta ou cartao invalido para este usuario" });
+      res.status(400).json({ message: "Categoria, conta ou cartão inválido para este usuário" });
       return;
     }
 
@@ -274,11 +274,11 @@ app.put("/transactions/:id", async (req, res, next) => {
     const data = transactionSchema.parse(req.body);
     const existing = await prisma.transaction.findFirst({ where: { id: req.params.id, userId } });
     if (!existing) {
-      res.status(404).json({ message: "Lancamento nao encontrado" });
+      res.status(404).json({ message: "Lançamento não encontrado" });
       return;
     }
     if (!(await validateTransactionRefs(data, userId))) {
-      res.status(400).json({ message: "Categoria, conta ou cartao invalido para este usuario" });
+      res.status(400).json({ message: "Categoria, conta ou cartão inválido para este usuário" });
       return;
     }
     const transaction = await prisma.transaction.update({ where: { id: req.params.id }, data });
@@ -319,7 +319,7 @@ const crud = <T extends z.ZodTypeAny>(
       const userId = getUserId(req);
       const data = schema.parse(req.body);
       if (validate && !(await validate(data, userId))) {
-        res.status(400).json({ message: "Dados relacionados invalidos para este usuario" });
+        res.status(400).json({ message: "Dados relacionados inválidos para este usuário" });
         return;
       }
       const createData = data as Record<string, unknown>;
@@ -336,11 +336,11 @@ const crud = <T extends z.ZodTypeAny>(
       const data = schema.parse(req.body);
       const existing = await model.findFirst({ where: { id: req.params.id, userId } });
       if (!existing) {
-        res.status(404).json({ message: "Registro nao encontrado" });
+        res.status(404).json({ message: "Registro não encontrado" });
         return;
       }
       if (validate && !(await validate(data, userId))) {
-        res.status(400).json({ message: "Dados relacionados invalidos para este usuario" });
+        res.status(400).json({ message: "Dados relacionados inválidos para este usuário" });
         return;
       }
       const item = await model.update({ where: { id: req.params.id }, data });
@@ -381,13 +381,13 @@ if (process.env.NODE_ENV === "production") {
       res.sendFile(join(webDist, "index.html"));
     });
   } else {
-    console.warn("Frontend compilado nao encontrado. Rode npm run build antes de iniciar em producao.");
+    console.warn("Frontend compilado não encontrado. Rode npm run build antes de iniciar em produção.");
   }
 }
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (error instanceof z.ZodError) {
-    res.status(400).json({ message: "Dados invalidos", issues: error.issues });
+    res.status(400).json({ message: "Dados inválidos", issues: error.issues });
     return;
   }
 
